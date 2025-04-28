@@ -1,0 +1,44 @@
+{
+    "monitoring": {
+      "groups": [
+        {
+          "id": "system_logs",
+          "description": "Мониторинг системных логов",
+          "paths": [
+            {
+              "path": "/var/log/syslog",
+              "recursive": false
+            },
+            {
+              "path": "/var/log/auth.log",
+              "recursive": false
+            }
+          ],
+          "events": ["MODIFY", "DELETE"],
+          "checksum": {
+            "enabled": true,
+            "algorithm": "sha256"
+          }
+        },
+        {
+          "id": "config_files",
+          "description": "Конфигурационные файлы сервера",
+          "paths": [
+            {
+              "path": "/etc/nginx",
+              "recursive": true
+            },
+            {
+              "path": "/etc/ssh",
+              "recursive": true
+            }
+          ],
+          "events": ["MODIFY", "CREATE", "DELETE"],
+          "checksum": {
+            "enabled": false
+          }
+        }
+      ]
+    }
+  }
+  

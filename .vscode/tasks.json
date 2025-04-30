@@ -8,10 +8,11 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
-                "-I${workspaceFolder}/include",      // Путь к заголовочным файлам
+                "-I${workspaceFolder}/include",
                 "${workspaceFolder}/*.cpp",
                 "-o",
-                "${workspaceFolder}/bin/course_work"
+                "${workspaceFolder}/bin/course_work",
+                "-luuid" // <-- Add this to link libuuid
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

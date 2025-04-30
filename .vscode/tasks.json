@@ -14,7 +14,8 @@
                 "${workspaceFolder}/bin/course_work",
                 "-luuid", // <-- Add this to link libuuid
                 "-lssl",
-                "-lcrypto"
+                "-lcrypto",
+                "-lsqlite3"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

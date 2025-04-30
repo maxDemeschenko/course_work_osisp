@@ -1,44 +1,50 @@
 {
-    "monitoring": {
-      "groups": [
-        {
-          "id": "system_logs",
-          "description": "Мониторинг системных логов",
-          "paths": [
-            {
-              "path": "/var/log/syslog",
-              "recursive": false
-            },
-            {
-              "path": "/var/log/auth.log",
-              "recursive": false
-            }
-          ],
-          "events": ["MODIFY", "DELETE"],
-          "checksum": {
-            "enabled": true,
-            "algorithm": "sha256"
+  "monitoring": {
+    "groups": [
+      {
+        "id": "test_group_1",
+        "description": "Тестовая группа 1 — простые файлы",
+        "paths": [
+          {
+            "path": "/home/maksd/course_wrok/test_storage/group1",
+            "recursive": false
           }
-        },
-        {
-          "id": "config_files",
-          "description": "Конфигурационные файлы сервера",
-          "paths": [
-            {
-              "path": "/etc/nginx",
-              "recursive": true
-            },
-            {
-              "path": "/etc/ssh",
-              "recursive": true
-            }
-          ],
-          "events": ["MODIFY", "CREATE", "DELETE"],
-          "checksum": {
-            "enabled": false
-          }
+        ],
+        "events": ["MODIFY", "DELETE"],
+        "checksum": {
+          "enabled": true,
+          "algorithm": "sha256"
         }
-      ]
-    }
+      },
+      {
+        "id": "test_group_2",
+        "description": "Тестовая группа 2 — с рекурсивным обходом",
+        "paths": [
+          {
+            "path": "/home/maksd/course_wrok/test_storage/group2",
+            "recursive": true
+          }
+        ],
+        "events": ["MODIFY", "CREATE", "DELETE"],
+        "checksum": {
+          "enabled": true,
+          "algorithm": "sha256"
+        }
+      },
+      {
+        "id": "test_group_3",
+        "description": "Тестовая группа 3 — без контрольных сумм",
+        "paths": [
+          {
+            "path": "/home/maksd/course_wrok/test_storage/group3",
+            "recursive": false
+          }
+        ],
+        "events": ["MODIFY", "MOVE"],
+        "checksum": {
+          "enabled": false
+        }
+      }
+    ]
   }
-  
+}

@@ -7,6 +7,7 @@
 #include "ChecksumService.hpp"
 #include "InitializationService.hpp"
 #include "TrackingFile.hpp"
+#include "StatePersistenceService.hpp"
 
 void processDirectory(const std::filesystem::path& dirPath, InitializationService& initializer, std::vector<TrackingFile>& trackedFiles, bool recursive) {
     if (!std::filesystem::exists(dirPath) || !std::filesystem::is_directory(dirPath)) {
@@ -93,6 +94,14 @@ int main() {
     }
 
     std::cout << "Отслеживаемых файлов: " << trackedFiles.size() << std::endl;
+
+    StatePersistenceService dbService("tracking.db");
+    dbService.initializeSchema();
+
+    for (auto& file : trackedFiles)
+    {
+        dbService.createTrackingFile(file);
+    }
 
     return 0;
 }

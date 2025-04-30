@@ -12,7 +12,9 @@
                 "${workspaceFolder}/*.cpp",
                 "-o",
                 "${workspaceFolder}/bin/course_work",
-                "-luuid" // <-- Add this to link libuuid
+                "-luuid", // <-- Add this to link libuuid
+                "-lssl",
+                "-lcrypto"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

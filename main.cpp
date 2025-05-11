@@ -9,6 +9,13 @@
 #include "TrackingFile.hpp"
 #include "StatePersistenceService.hpp"
 #include "InotifyWatcher.hpp"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <csignal>
+#include <iostream>
+#include <fstream>
 
 void processFile(const std::filesystem::path& filePath,
                  InitializationService& initializer,
@@ -132,8 +139,48 @@ std::vector<TrackingFile> loadAndProcessConfiguration(const std::string& configP
     return trackedFiles;
 }
 
+std::atomic<bool> running = true;
+
+void signalHandler(int) {
+    running = false;
+}
+
 
 int main() {
+
+        pid_t pid = fork();
+    if (pid < 0) {
+        std::cerr << "Ошибка fork()" << std::endl;
+        return 1;
+    }
+    if (pid > 0) {
+        std::cout << "Фоновый процесс запущен с PID " << pid << std::endl;
+        return 0;  // родитель выходит
+    }
+
+    // Создание новой сессии
+    if (setsid() < 0) {
+        std::cerr << "Ошибка setsid()" << std::endl;
+        return 1;
+    }
+
+    // Перенаправление стандартных потоков
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+    open("/dev/null", O_RDONLY);  // STDIN
+    open("/dev/null", O_WRONLY);  // STDOUT
+    open("/dev/null", O_RDWR);    // STDERR
+
+    // Обработка сигналов завершения
+    signal(SIGTERM, signalHandler);
+    signal(SIGINT, signalHandler);
+
+    std::ofstream log("daemon.log", std::ios::app);
+    std::cerr.rdbuf(log.rdbuf());
+    std::cout.rdbuf(log.rdbuf());
+
+
     const std::string configPath = "config.json";
 
     VaultService vault(".filevault");
@@ -147,21 +194,27 @@ int main() {
 
     auto setupFileWatchers = [&](std::vector<TrackingFile>& files) {
         for (auto& file : files) {
-            watcher.addWatch(file.filePath, [&](uint32_t mask) {
-                std::cout << "📝 Изменение файла: " << file.filePath << std::endl;
+            std::string path = file.filePath;
+            std::string fileId = file.fileId;
+            std::string lastChecksum = file.lastChecksum;
+
+            watcher.addWatch(path, [&, path, fileId, lastChecksum](uint32_t mask) mutable {
+                std::cout << "📝 Изменение файла: " << path << std::endl;
 
                 if (mask & IN_MODIFY) {
                     std::cout << "  → Файл модифицирован. Пересчитываем хеш..." << std::endl;
                     try {
-                        std::string newChecksum = checksum.compute(file.filePath);
-                        if (newChecksum != file.lastChecksum) {
+                        std::string newChecksum = checksum.compute(path);
+                        if (newChecksum != lastChecksum) {
                             FileChange change;
                             change.timestamp = std::chrono::system_clock::now();
                             change.checksum = newChecksum;
-                            change.savedVersionId = vault.save(file.filePath);
-                            dbService.saveFileChange(file.fileId, change);
-                            file.lastChecksum = newChecksum;
-                            dbService.updateTrackingFileChecksum(file.fileId, newChecksum);
+                            change.savedVersionId = vault.save(path);
+
+                            dbService.saveFileChange(fileId, change);
+                            dbService.updateTrackingFileChecksum(fileId, newChecksum);
+                            lastChecksum = newChecksum;
+
                             std::cout << "  ✔ Резервная копия сохранена и хеш обновлён." << std::endl;
                         } else {
                             std::cout << "  ↪ Хеш не изменился" << std::endl;
@@ -173,11 +226,11 @@ int main() {
 
                 if (mask & IN_DELETE) {
                     std::cout << "  ⚠ Файл был удалён" << std::endl;
-                    file.isMissing = true;
-                    dbService.updateTrackingFileMissing(file.fileId, true);
+                    dbService.updateTrackingFileMissing(fileId, true);
                 }
             });
         }
+
     };
 
     std::function<void()> reloadConfiguration = [&]() {
@@ -205,10 +258,14 @@ int main() {
 
     // Инициализация
     reloadConfiguration();
+    // setupFileWatchers();
     watcher.start();
 
     std::cout << "Нажмите Enter для выхода..." << std::endl;
-    std::cin.get();
+    // std::cin.get();
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::hours(24));
+    }
 
     watcher.stop();
     return 0;

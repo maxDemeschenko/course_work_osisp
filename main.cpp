@@ -142,68 +142,74 @@ int main() {
     StatePersistenceService dbService("tracking.db");
     dbService.initializeSchema();
 
-    std::vector<TrackingFile> trackedFiles;
-    try {
-        trackedFiles = loadAndProcessConfiguration(configPath, initializer, checksum, vault, dbService);
-    } catch (const std::exception& ex) {
-        std::cerr << ex.what() << std::endl;
-        return 1;
-    }
-
-    std::cout << "Отслеживаемых файлов: " << trackedFiles.size() << std::endl;
-
     InotifyWatcher watcher;
+    std::vector<TrackingFile> trackedFiles;
 
-    for (auto& file : trackedFiles) {
-        watcher.addWatch(file.filePath, [&](uint32_t mask) {
-            std::cout << "📝 Изменение файла: " << file.filePath << std::endl;
-            std::cout << mask;
+    auto setupFileWatchers = [&](std::vector<TrackingFile>& files) {
+        for (auto& file : files) {
+            watcher.addWatch(file.filePath, [&](uint32_t mask) {
+                std::cout << "📝 Изменение файла: " << file.filePath << std::endl;
 
-            if (mask & IN_MODIFY) {
-                std::cout << "  → Файл модифицирован. Пересчитываем хеш..." << std::endl;
-                try {
-                    std::string newChecksum = checksum.compute(file.filePath);
-                    std::string oldChecksum = file.lastChecksum;
-
-                    // Если хеш изменился, выполняем логику обновления
-                    if (newChecksum != oldChecksum) {
-                        FileChange change;
-                        change.timestamp = std::chrono::system_clock::now();
-                        change.checksum = newChecksum;
-
-                        // Создаем резервную копию
-                        change.savedVersionId = vault.save(file.filePath);
-                        dbService.saveFileChange(file.fileId, change);
-
-                        // Обновляем хеш и сохраняем его в БД
-                        file.lastChecksum = newChecksum;
-                        dbService.updateTrackingFileChecksum(file.fileId, newChecksum);
-
-                        std::cout << "  ✔ Резервная копия сохранена и хеш обновлён." << std::endl;
-                    } else {
-                        std::cout << "  ↪ Хеш не изменился" << std::endl;
+                if (mask & IN_MODIFY) {
+                    std::cout << "  → Файл модифицирован. Пересчитываем хеш..." << std::endl;
+                    try {
+                        std::string newChecksum = checksum.compute(file.filePath);
+                        if (newChecksum != file.lastChecksum) {
+                            FileChange change;
+                            change.timestamp = std::chrono::system_clock::now();
+                            change.checksum = newChecksum;
+                            change.savedVersionId = vault.save(file.filePath);
+                            dbService.saveFileChange(file.fileId, change);
+                            file.lastChecksum = newChecksum;
+                            dbService.updateTrackingFileChecksum(file.fileId, newChecksum);
+                            std::cout << "  ✔ Резервная копия сохранена и хеш обновлён." << std::endl;
+                        } else {
+                            std::cout << "  ↪ Хеш не изменился" << std::endl;
+                        }
+                    } catch (const std::exception& ex) {
+                        std::cerr << "  ⚠ Ошибка обновления контрольной суммы: " << ex.what() << std::endl;
                     }
-                } catch (const std::exception& ex) {
-                    std::cerr << "  ⚠ Ошибка обновления контрольной суммы: " << ex.what() << std::endl;
                 }
-            }
 
-            if (mask & IN_DELETE) {
-                std::cout << "  ⚠ Файл был удалён" << std::endl;
-                file.isMissing = true;
-                dbService.updateTrackingFileMissing(file.fileId, true);
-            }
-        });
-    }
+                if (mask & IN_DELETE) {
+                    std::cout << "  ⚠ Файл был удалён" << std::endl;
+                    file.isMissing = true;
+                    dbService.updateTrackingFileMissing(file.fileId, true);
+                }
+            });
+        }
+    };
 
+    std::function<void()> reloadConfiguration = [&]() {
+        std::cout << "\n🔄 Перезагрузка конфигурации..." << std::endl;
+        try {
+            // Удаляем все текущие наблюдения
+            watcher.clearWatches();
 
+            // Перезагружаем конфигурацию и отслеживаемые файлы
+            trackedFiles = loadAndProcessConfiguration(configPath, initializer, checksum, vault, dbService);
+            setupFileWatchers(trackedFiles);
+
+            // Добавляем наблюдение за изменением конфигурации
+            watcher.addWatch(configPath, [&](uint32_t mask) {
+                if (mask & IN_MODIFY) {
+                    reloadConfiguration();
+                }
+            });
+
+            std::cout << "✔ Конфигурация обновлена. Отслеживаемых файлов: " << trackedFiles.size() << std::endl;
+        } catch (const std::exception& ex) {
+            std::cerr << "  ⚠ Ошибка при обновлении конфигурации: " << ex.what() << std::endl;
+        }
+    };
+
+    // Инициализация
+    reloadConfiguration();
     watcher.start();
 
-    // Например, подождать на enter чтобы завершить
     std::cout << "Нажмите Enter для выхода..." << std::endl;
     std::cin.get();
 
     watcher.stop();
-
     return 0;
 }

@@ -6,7 +6,9 @@
 #include <unordered_map>
 #include <atomic>
 #include <functional>
-#include <iomanip>
+#include <stdexcept>
+#include <string>
+#include <iostream>
 
 class InotifyWatcher {
 public:
@@ -19,6 +21,7 @@ public:
 
     ~InotifyWatcher() {
         stop();
+        clearWatches();
         close(inotifyFd);
     }
 
@@ -29,6 +32,15 @@ public:
             throw std::runtime_error("Не удалось добавить inotify watch на: " + path);
         }
         watchMap[wd] = callback;
+        wdToPath[wd] = path;
+    }
+
+    void clearWatches() {
+        for (const auto& [wd, path] : wdToPath) {
+            inotify_rm_watch(inotifyFd, wd);
+        }
+        watchMap.clear();
+        wdToPath.clear();
     }
 
     void start() {
@@ -70,5 +82,6 @@ private:
     int inotifyFd;
     std::atomic<bool> running;
     std::unordered_map<int, std::function<void(uint32_t)>> watchMap;
+    std::unordered_map<int, std::string> wdToPath;
     std::thread watchThread;
 };

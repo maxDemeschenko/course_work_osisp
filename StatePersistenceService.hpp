@@ -14,6 +14,8 @@ public:
     void createTrackingFile(TrackingFile& file);
     void saveTrackingFile(const TrackingFile& file);
     void saveFileChange(const std::string& fileId, const FileChange& change);
+    void updateTrackingFileChecksum(const std::string& fileId, const std::string& newChecksum);
+    void updateTrackingFileMissing(const std::string& fileId, bool isMissing);
 
     std::vector<TrackingFile> loadTrackedFiles(); // Восстановление состояния
 

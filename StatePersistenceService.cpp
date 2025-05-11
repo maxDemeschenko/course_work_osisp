@@ -16,11 +16,12 @@ StatePersistenceService::~StatePersistenceService() {
 }
 
 void StatePersistenceService::initializeSchema() {
-    const std::string drop = R"SQL(
-        drop table file_changes;
-        drop table tracking_files;
-    )SQL";
-    execute(drop); //DEBUG DROP ONLY, SHOULD BE DELETED
+    // const std::string drop = R"SQL(
+    //     drop table file_changes;
+    //     drop table tracking_files;
+    // )SQL";
+    // execute(drop); //DEBUG DROP ONLY, SHOULD BE DELETED
+    // return;
 
     const std::string sql = R"SQL(
         CREATE TABLE IF NOT EXISTS tracking_files (
